@@ -11,7 +11,7 @@ export const useSocket = () => {
 
 export const SocketProvider = (props) => {
   //using usememo so that the socket don not initializes again and again
-  const socket = useMemo(() => io("localhost:8000"), []);
+  const socket = useMemo(() => io("https://callit-axiw.onrender.com/"), []);
 
   return (
     <SocketContext.Provider value={socket}>
