@@ -1,7 +1,12 @@
 const { Server } = require("socket.io");
 const io = new Server(8000, {
-  cors: true,
+  cors: {
+    origin: "https://fullstackvideocallapp.onrender.com", // Replace this with your frontend URL
+    methods: ["GET", "POST"], // Allowed methods
+    credentials: true, // If you need cookies or auth credentials
+  }
 });
+
 
 const emailtoSocketMap = new Map();
 const sockettoEmailMap = new Map();
