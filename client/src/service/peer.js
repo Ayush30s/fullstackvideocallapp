@@ -36,6 +36,19 @@ class PeerService {
       await this.peer.setRemoteDescription(new RTCSessionDescription(ans));
     }
   }
+
+  async closeConnection(stream) {
+    //stop all the media capturing
+    stream.getTracks().forEach(track => {
+      track.stop();
+    });
+
+    //stop the peer-to-peer connection
+    if(peer.peer) {
+      peer.peer.close();
+      peer.peer = null;
+    }
+  }
 }
 
 const peer = new PeerService();

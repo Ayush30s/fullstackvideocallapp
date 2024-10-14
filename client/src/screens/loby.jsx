@@ -73,7 +73,7 @@ const LobbyScreen = () => {
           Join
         </button>
       </form>
-    </div>
+    </div> 
   );
 };
 

@@ -2,49 +2,40 @@ import React, { useEffect, useCallback, useState } from "react";
 import { useSocket } from "../context/socketProvider";
 import ReactPlayer from "react-player";
 import peer from "../service/peer";
+import { useNavigate } from "react-router-dom";
 
 const RoomPage = () => {
   const socket = useSocket();
   const [remoteSocketId, setRemoteSocketID] = useState();
   const [mystream, setMyStream] = useState();
-  const [remoteStream, setRemoteStream] = useState();
+  const [remoteStream, setRemoteStream] = useState(null);
   const [MuteVideo, setMuteVideo] = useState(false);
   const [MuteAudio, setMuteAudio] = useState(false);
   const [onCall, setOnCall] = useState(false);
 
+  const navigate = useNavigate();
   const handleUserJoined = useCallback(({ email, id }) => {
     setRemoteSocketID(id);
   }, []);
 
   const handleCallUser = useCallback(async () => {
-    // to call a user first on the video
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: true,
     });
 
-    // get the offer and send it to the next user
     const offer = await peer.getOffer();
-
-    // send the offer to the next user
     socket.emit("user:call", { to: remoteSocketId, offer });
-
-    // now i have strem set the stream
     setMyStream(stream);
   }, [remoteSocketId, socket]);
 
   const handleIncomingCall = useCallback(
-    //getting the socketid and offer from of the main user
     async ({ from, offer }) => {
       setRemoteSocketID(from);
-
-      //get my stream
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: true,
       });
-
-      //set stream to mystream to show in mystream
       setMyStream(stream);
       const ans = await peer.getAnswer(offer);
       socket.emit("call:accepted", { to: from, ans });
@@ -53,13 +44,12 @@ const RoomPage = () => {
   );
 
   const sendStreams = useCallback(() => {
-    setOnCall(!onCall)
+    setOnCall(!onCall);
     for (const track of mystream.getTracks()) {
       peer.peer.addTrack(track, mystream);
     }
   }, [mystream]);
 
-  //getting the user socket id that accepted the call and send its ans
   const handleCallAccepted = useCallback(
     ({ from, ans }) => {
       peer.setLocalDescription(ans);
@@ -94,54 +84,38 @@ const RoomPage = () => {
   }, []);
 
   const handleVideoToggle = () => {
-    // Filter out the video track from the stream
     const videoTrack = mystream
       .getTracks()
       .find((track) => track.kind === "video");
 
-    // Check if videoTrack exists (to avoid errors if no video track is present)
     if (videoTrack) {
-      // Toggle the enabled property of the video track
-      if (videoTrack.enabled) {
-        videoTrack.enabled = false;
-        setMuteVideo(true);
-      } else {
-        videoTrack.enabled = true;
-        setMuteVideo(false);
-      }
-    } else {
-      console.error("No video track found in the stream.");
+      videoTrack.enabled = !videoTrack.enabled;
+      setMuteVideo(!videoTrack.enabled);
     }
   };
 
+  const handleEndCall = async () => {
+    await peer.closeConnection(mystream);
+    navigate("/");
+  };
+
   const handleAudioToggle = () => {
-    // Filter out the video track from the stream
     const AudioTrack = mystream
       .getTracks()
       .find((track) => track.kind === "audio");
 
-    // Check if videoTrack exists (to avoid errors if no video track is present)
     if (AudioTrack) {
-      // Toggle the enabled property of the video track
-      if (AudioTrack.enabled) {
-        AudioTrack.enabled = false;
-        setMuteAudio(true);
-      } else {
-        AudioTrack.enabled = true;
-        setMuteAudio(false);
-      }
-    } else {
-      console.error("No video track found in the stream.");
+      AudioTrack.enabled = !AudioTrack.enabled;
+      setMuteAudio(!AudioTrack.enabled);
     }
   };
 
   useEffect(() => {
     peer.peer.addEventListener("track", async (ev) => {
       const remoteStream = ev.streams;
-      console.log("Got Tracks!!!");
-      setRemoteStream(remoteStream[0]);
+      if (remoteStream[0]) setRemoteStream(remoteStream[0]);
     });
-  });
+  }, [mystream]);
 
   useEffect(() => {
     socket.on("user:joined", handleUserJoined);
@@ -177,7 +151,7 @@ const RoomPage = () => {
           onClick={sendStreams}
           className="px-6 py-3 bg-teal-600 rounded-lg shadow-lg hover:bg-teal-700 transition-all duration-300 transform hover:scale-105"
         >
-          Send Stream
+          {onCall ? "Streaming..." : "Share Screen"}
         </button>
       )}
 
@@ -192,54 +166,55 @@ const RoomPage = () => {
       {remoteSocketId && (
         <button
           className="px-6 py-3 mt-4 bg-indigo-600 rounded-lg shadow-lg hover:bg-indigo-700 transition-all duration-300 transform hover:scale-105"
-          onClick={handleCallUser}
+          onClick={onCall ? handleEndCall : handleCallUser}
         >
           {onCall ? "End" : "Call"}
         </button>
       )}
 
-      {mystream && (
-        <div className="flex space-x-4 my-5">
-          <button
-            onClick={handleVideoToggle}
-            className="px-4 py-2 bg-blue-600 rounded-full shadow-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105"
-          >
-            {MuteVideo ? "Unmute Video" : "Mute Video"}
-          </button>
+      <div className="flex flex-col lg:flex-row space-y-6 lg:space-y-0 lg:space-x-6 my-8">
+        {mystream && (
+          <div className="w-full lg:w-1/2 flex flex-col items-center">
+            <h1 className="text-xl text-teal-300 mb-2">My Stream</h1>
+            <div className="rounded-lg overflow-hidden shadow-lg transform transition-all duration-500 hover:scale-105">
+              <ReactPlayer playing height="300px" width="100%" url={mystream} />
+            </div>
+            <div className="flex space-x-4 mt-4">
+              <button
+                onClick={handleVideoToggle}
+                className="px-4 py-2 bg-blue-600 rounded-full shadow-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105"
+              >
+                {MuteVideo ? "Unmute Video" : "Mute Video"}
+              </button>
 
-          <button
-            onClick={handleAudioToggle}
-            className="px-4 py-2 bg-red-600 rounded-full shadow-lg hover:bg-red-700 transition-all duration-300 transform hover:scale-105"
-          >
-            {MuteAudio ? "Unmute Audio" : "Mute Audio"}
-          </button>
-        </div>
-      )}
-
-      {mystream && (
-        <div className="my-8">
-          <h1 className="text-xl text-teal-300 mb-2">My Stream</h1>
-          <div className="rounded-lg overflow-hidden shadow-lg transform transition-all duration-500 hover:scale-105">
-            <ReactPlayer playing height="300px" width="300px" url={mystream} />
+              <button
+                onClick={handleAudioToggle}
+                className="px-4 py-2 bg-red-600 rounded-full shadow-lg hover:bg-red-700 transition-all duration-300 transform hover:scale-105"
+              >
+                {MuteAudio ? "Unmute Audio" : "Mute Audio"}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {remoteStream ? (
-        <div className="my-8">
-          <h1 className="text-xl text-yellow-300 mb-2">Remote Stream</h1>
-          <div className="rounded-lg overflow-hidden shadow-lg transform transition-all duration-500 hover:scale-105">
-            <ReactPlayer
-              playing
-              height="300px"
-              width="300px"
-              url={remoteStream}
-            />
+        {remoteStream ? (
+          <div className="w-full lg:w-1/2 flex flex-col items-center">
+            <h1 className="text-xl text-yellow-300 mb-2">Remote Stream</h1>
+            <div className="rounded-lg overflow-hidden shadow-lg transform transition-all duration-500 hover:scale-105">
+              <ReactPlayer
+                playing
+                height="300px"
+                width="100%"
+                url={remoteStream}
+              />
+            </div>
           </div>
-        </div>
-      ) : (
-        console.log("No remote stream")
-      )}
+        ) : (
+          <div className="m-auto text-3xl font-bold">
+            User is Not Connected!
+          </div>
+        )}
+      </div>
     </div>
   );
 };
